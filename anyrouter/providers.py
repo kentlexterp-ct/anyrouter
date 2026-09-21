@@ -78,19 +78,13 @@ class AnthropicProvider:
         return p
 
     def _wrap(self, resp):
-        text = "".join(b.get("text", "") for b in resp.get("content", []) if b.get("type") == "text")
-        return {
-            "id": resp.get("id", "x"),
-            "object": "chat.completion",
-            "created": 0,
-            "model": resp.get("model"),
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": text}, "finish_reason": "stop"}],
-            "usage": {
-                "prompt_tokens": resp.get("usage", {}).get("input_tokens", 0),
-                "completion_tokens": resp.get("usage", {}).get("output_tokens", 0),
-                "total_tokens": 0,
-            },
-        }
+        text = "".join(b.get("text","") for b in resp.get("content",[]) if b.get("type")=="text")
+        return {"id": resp.get("id","x"), "object": "chat.completion", "created": 0,
+                "model": resp.get("model"),
+                "choices": [{"index":0,"message":{"role":"assistant","content":text},"finish_reason":"stop"}],
+                "usage": {"prompt_tokens": resp.get("usage",{}).get("input_tokens",0),
+                          "completion_tokens": resp.get("usage",{}).get("output_tokens",0),
+                          "total_tokens": 0}}
 
     async def chat(self, model, body):
         p = self._translate(body)
@@ -100,27 +94,64 @@ class AnthropicProvider:
             return self._wrap(r.json())
 
     async def stream_chat(self, model, body):
-        p = self._translate(body)
-        p["stream"] = True
+        p = self._translate(body); p["stream"] = True
         async with httpx.AsyncClient(timeout=None) as c:
             async with c.stream("POST", f"{self.base}/messages", headers=self.headers(), json=p) as r:
                 r.raise_for_status()
                 async for line in r.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
+                    if not line.startswith("data: "): continue
                     data = line[6:].strip()
-                    if not data or data == "[DONE]":
-                        continue
-                    try:
-                        ev = json.loads(data)
-                    except Exception:
-                        continue
+                    if not data or data == "[DONE]": continue
+                    try: ev = json.loads(data)
+                    except: continue
                     if ev.get("type") == "content_block_delta":
-                        text = ev.get("delta", {}).get("text", "")
+                        text = ev.get("delta",{}).get("text","")
                         if text:
-                            payload = {"choices": [{"delta": {"content": text}, "index": 0}]}
-                            yield f"data: {json.dumps(payload)}\n\n".encode()
+                            yield f"data: {json.dumps({'choices':[{'delta':{'content':text},'index':0}]})}\n\n".encode()
                 yield b"data: [DONE]\n\n"
+
+
+class OpenRouterProvider:
+    name = "openrouter"
+    base = "https://openrouter.ai/api/v1"
+
+    @property
+    def available(self):
+        return cfg.has_openrouter
+
+    def headers(self):
+        return {
+            "Authorization": f"Bearer {cfg.openrouter_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-OpenRouter-Title": "anyrouter",
+        }
+
+    async def list_models(self):
+        return [
+            "google/gemma-4-31b-it:free",
+            "z-ai/glm-5.2:free",
+        ]
+
+    async def chat(self, model, body):
+        p = {k: v for k, v in body.items()
+             if k in ("messages","temperature","top_p","max_tokens","stop","tools","tool_choice")}
+        p["model"] = model
+        async with httpx.AsyncClient(timeout=300) as c:
+            r = await c.post(f"{self.base}/chat/completions", headers=self.headers(), json=p)
+            r.raise_for_status()
+            return r.json()
+
+    async def stream_chat(self, model, body):
+        p = {k: v for k, v in body.items()
+             if k in ("messages","temperature","top_p","max_tokens","stop","tools","tool_choice")}
+        p["model"] = model
+        p["stream"] = True
+        async with httpx.AsyncClient(timeout=None) as c:
+            async with c.stream("POST", f"{self.base}/chat/completions", headers=self.headers(), json=p) as r:
+                r.raise_for_status()
+                async for chunk in r.aiter_bytes():
+                    yield chunk
 
 
 class OllamaProvider:
@@ -135,7 +166,7 @@ class OllamaProvider:
             async with httpx.AsyncClient(timeout=3) as c:
                 r = await c.get(f"{cfg.ollama_url}/api/tags")
                 r.raise_for_status()
-                return [m["name"] for m in r.json().get("models", [])]
+                return [m["name"] for m in r.json().get("models",[])]
         except Exception:
             return []
 
@@ -145,11 +176,9 @@ class OllamaProvider:
             r = await c.post(f"{cfg.ollama_url}/api/chat", json=p)
             r.raise_for_status()
             resp = r.json()
-        return {
-            "id": "x", "object": "chat.completion", "created": 0, "model": model,
-            "choices": [{"index": 0, "message": {"role": "assistant", "content": resp.get("message", {}).get("content", "")}, "finish_reason": "stop"}],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-        }
+        return {"id":"x","object":"chat.completion","created":0,"model":model,
+                "choices":[{"index":0,"message":{"role":"assistant","content":resp.get("message",{}).get("content") or ""},"finish_reason":"stop"}],
+                "usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0}}
 
     async def stream_chat(self, model, body):
         p = {"model": model, "messages": body.get("messages", []), "stream": True}
@@ -157,21 +186,22 @@ class OllamaProvider:
             async with c.stream("POST", f"{cfg.ollama_url}/api/chat", json=p) as r:
                 r.raise_for_status()
                 async for line in r.aiter_lines():
-                    if not line:
-                        continue
-                    try:
-                        ev = json.loads(line)
-                    except Exception:
-                        continue
-                    text = ev.get("message", {}).get("content", "")
-                    payload = {"choices": [{"delta": {"content": text}, "index": 0}]}
-                    yield f"data: {json.dumps(payload)}\n\n".encode()
+                    if not line: continue
+                    try: ev = json.loads(line)
+                    except: continue
+                    text = ev.get("message",{}).get("content","")
+                    yield f"data: {json.dumps({'choices':[{'delta':{'content':text},'index':0}]})}\n\n".encode()
                     if ev.get("done"):
                         yield b"data: [DONE]\n\n"
                         break
 
 
-PROVIDERS = {"openai": OpenAIProvider(), "anthropic": AnthropicProvider(), "ollama": OllamaProvider()}
+PROVIDERS = {
+    "openai": OpenAIProvider(),
+    "anthropic": AnthropicProvider(),
+    "openrouter": OpenRouterProvider(),
+    "ollama": OllamaProvider(),
+}
 
 
 def all_providers():

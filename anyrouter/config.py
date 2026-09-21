@@ -10,6 +10,8 @@ class Config:
     port: int = int(os.getenv("ANYROUTER_PORT", "8000"))
     openai_key: str | None = os.getenv("OPENAI_API_KEY")
     anthropic_key: str | None = os.getenv("ANTHROPIC_API_KEY")
+    google_key: str | None = os.getenv("GOOGLE_API_KEY")
+    openrouter_key: str | None = os.getenv("OPENROUTER_API_KEY")
     ollama_url: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     @property
@@ -19,5 +21,13 @@ class Config:
     @property
     def has_anthropic(self):
         return bool(self.anthropic_key)
+
+    @property
+    def has_google(self):
+        return bool(self.google_key)
+
+    @property
+    def has_openrouter(self):
+        return bool(self.openrouter_key)
 
 cfg = Config()
