@@ -1,5 +1,35 @@
 # AnyRouter V2
 
+Secure, OpenAI-compatible API gateway for multi-provider AI applications.
+
+AnyRouter V2 is a Python and FastAPI gateway that provides a unified interface for interacting with multiple language model providers, including OpenAI, Anthropic, OpenRouter, and local Ollama models.
+
+Instead of embedding separate provider integrations throughout an application, developers can use a single API endpoint with centralized routing, access controls, failure handling, and monitoring.
+
+### Why I built it
+
+Integrating multiple AI providers introduces challenges around API compatibility, availability, security, streaming responses, and operational reliability.
+
+I built AnyRouter V2 to explore how these concerns can be handled in a reusable, maintainable gateway rather than repeated across individual applications.
+
+### Key capabilities
+
+- **Unified LLM API:** OpenAI-compatible chat completion endpoint
+- **Automatic routing:** Select eligible models based on capabilities, health, context, and cost policies
+- **Safe provider fallback:** Retry eligible failures before response output begins
+- **Circuit breakers:** Temporarily isolate failing providers and allow controlled recovery
+- **Streaming:** Server-Sent Events with cancellation and error handling
+- **API security:** Scoped authentication, provider/model restrictions, and rate limits
+- **Monitoring:** Prometheus-compatible metrics, request IDs, and readiness checks
+- **AI classification:** Lead classification endpoint with fallback handling
+
+### Engineering validation
+
+The project includes 125 automated tests and 89 subtests. GitHub Actions validation has passed across Windows and Ubuntu with Python 3.10, 3.12, and 3.14.
+
+**Project status:** Portfolio-ready engineering project. Live cross-provider failover under real outages and production deployment have not yet been independently validated.
+
+Continue below for architecture, setup instructions, API examples, security configuration, and testing details.
 OpenAI-compatible gateway with secure multi-provider routing
 
 ## Architecture
