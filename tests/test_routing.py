@@ -217,7 +217,12 @@ class RoutingIntegrationTests(unittest.IsolatedAsyncioTestCase):
             response = await self.chat(model="ollama:known")
             self.assertEqual(response.status_code, 503)
             self.assertEqual(len(self.first.calls), 1)
-            await asyncio.sleep(0.02)
+            # Deterministically simulate cooldown expiry instead of racing real time.
+            # Setting until to a value already past the current clock guarantees
+            # the circuit is usable on the next request without depending on
+            # asyncio.sleep timing.
+            breaker = self.runtime.breaker("ollama")
+            breaker.until = breaker.clock() - 1
             self.first.error = None
             self.assertEqual((await self.chat(model="ollama:known")).status_code, 200)
             self.assertEqual(self.runtime.breaker("ollama").state, "closed")
