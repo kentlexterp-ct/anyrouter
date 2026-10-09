@@ -1,4 +1,5 @@
 import asyncio
+import time
 import unittest
 from unittest.mock import patch
 
@@ -121,7 +122,7 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(self.catalog.candidates("auto", self.body, self.runtime)[0].provider, "openrouter")
         with patch.object(cfg, "route_aliases", {"local": ["ollama:local"]}):
             self.assertEqual(len(self.catalog.candidates("local", self.body, self.runtime)), 1)
-        self.catalog.records["ollama:local"] = ModelRecord("ollama", "local", frozenset({"chat"}), 10000, True, 0)
+        self.catalog.records["ollama:local"] = ModelRecord("ollama", "local", frozenset({"chat"}), 10000, True, updated=time.monotonic() - cfg.catalog_max_age - 1)
         self.runtime.breaker("openrouter").state = "open"
         self.runtime.breaker("openrouter").until = float("inf")
         with self.assertRaises(GatewayError):
