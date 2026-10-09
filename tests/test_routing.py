@@ -212,7 +212,7 @@ class RoutingIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_circuit_blocks_callback_and_recovers_with_one_probe(self):
         self.first.error = RuntimeError("secret")
-        with patch.multiple(cfg, breaker_threshold=1, breaker_cooldown=0.01):
+        with patch.multiple(cfg, breaker_threshold=1, breaker_cooldown=60):
             await self.chat(model="ollama:known")
             response = await self.chat(model="ollama:known")
             self.assertEqual(response.status_code, 503)
