@@ -1,11 +1,22 @@
-﻿[project]
+[project]
 name = "anyrouter"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = [
+    "anyio>=3.4,<5",
     "fastapi>=0.110",
     "uvicorn[standard]>=0.27",
     "httpx>=0.27",
     "pydantic>=2.6",
     "python-dotenv>=1.0",
 ]
+
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project.scripts]
+anyrouter = "anyrouter.main:run"
+
+[tool.setuptools.packages.find]
+include = ["anyrouter*"]

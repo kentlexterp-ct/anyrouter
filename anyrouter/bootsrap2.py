@@ -314,13 +314,28 @@ if __name__ == "__main__":
 }
 
 
-def main():
-    for rel, content in FILES.items():
-        path = ROOT / rel
+def main(argv=None):
+    import argparse
+    parser = argparse.ArgumentParser(description="Legacy scaffold; never use to upgrade an existing gateway.")
+    parser.add_argument("--target", type=Path, default=ROOT)
+    parser.add_argument("--create", action="store_true", help="Create a new scaffold; existing targets are refused")
+    args = parser.parse_args(argv)
+    target = args.target.resolve()
+    paths = [(target / rel).resolve() for rel in FILES]
+    if any(not path.is_relative_to(target) for path in paths):
+        parser.error("Generated paths must remain inside the target")
+    if not args.create:
+        print(f"Dry run: legacy scaffold would create {len(paths)} files under {target}; no files written.")
+        return
+    if target.exists():
+        parser.error("Target already exists; this legacy generator never overwrites existing directories")
+    target.mkdir(parents=True, exist_ok=False)
+    for (rel, content), path in zip(FILES.items(), paths):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content, encoding="utf-8")
+        with path.open("x", encoding="utf-8") as handle:
+            handle.write(content)
         print(f"[+] {rel}")
-    print(f"\nDone. {len(FILES)} files created.")
+    print(f"\nDone. {len(FILES)} legacy scaffold files created.")
 
 
 if __name__ == "__main__":
